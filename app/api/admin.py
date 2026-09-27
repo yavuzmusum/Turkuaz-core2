@@ -134,3 +134,22 @@ def dashboard(db: Session = Depends(get_db), _admin: User = Depends(require_admi
         ).count(),
         "recent_errors": db.query(SystemLog).filter(SystemLog.level == "ERROR").count(),
     }
+
+import os
+from pydantic import BaseModel
+
+class BootstrapRequest(BaseModel):
+    username: str
+    setup_key: str
+
+@router.post("/bootstrap")
+def make_user_admin(data: BootstrapRequest, db = Depends(get_db)):
+    expected_key = os.getenv("ADMIN_BOOTSTRAP_KEY")
+    if not expected_key or data.setup_key != expected_key:
+        raise HTTPException(status_code=403, detail="Gecersiz setup key.")
+    user = db.query(User).filter(User.username == data.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanici bulunamadi.")
+    user.role = "admin"
+    db.commit()
+    return {"message": f"{data.username} artik admin."}
